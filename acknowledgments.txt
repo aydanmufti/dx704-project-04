@@ -1,0 +1,195 @@
+ACKNOWLEDGMENTS
+
+Course Materials and Resources:
+- Week 4 course materials on contextual bandit algorithms and LinUCB implementation
+- Course documentation on linear contextual bandits and ridge regression integration
+- Course materials on LinUCB algorithm theory, upper confidence bounds calculation, and parameter estimation
+- Course content on feature engineering for contextual bandits, including one-hot encoding of categorical variables
+- Example code from course materials showing LinUCB implementation patterns and matrix operations for confidence bounds
+- Course materials on dimensionality reduction techniques for high-dimensional contextual bandit problems
+- Course content on online learning algorithms and sequential decision making under uncertainty
+- Course materials on regret analysis and performance evaluation for contextual bandit algorithms
+- Li, Lihong, et al. "A contextual-bandit approach to personalized news article recommendation." Proceedings of the 19th international conference on World wide web. 2010.
+- Chu, Wei, et al. "Contextual bandits with linear payoff functions." Proceedings of the fourteenth international conference on artificial intelligence and statistics. 2011.
+- Bandit Algorithms by Tor Lattimore and Csaba Szepesvári https://tor-lattimore.com/downloads/book/book.pdf
+- Introduction to Multi-Armed Bandits by Aleksandrs Slivkins https://arxiv.org/abs/1904.07272
+
+Libraries Used:
+- numpy: Matrix operations, linear algebra calculations (matrix inversion, dot products), random number generation, and array operations for LinUCB implementation
+- pandas: Data manipulation, TSV file I/O operations, pivot table operations for one-hot encoding, and DataFrame operations for recipe and tag data processing
+- sklearn.linear_model (Ridge): Ridge regression model training for baseline preference modeling and coefficient estimation
+- sklearn.metrics: Model performance evaluation including mean squared error and R² calculations
+- matplotlib.pyplot: Data visualization for algorithm performance analysis and learning curves
+
+Python Standard Library:
+- Built-in functions (min, max, sum, len) for statistical calculations and data analysis
+- File I/O operations for reading and writing TSV files (ratings.tsv, features.tsv, model.tsv, estimates.tsv, bounds.tsv, recommendations.tsv)
+- Math operations for confidence bound calculations and matrix computations
+
+Generative AI Assistance:
+- AI helped with understanding linUCB:
+
+prompt: can you explain linUCB
+response: LinUCB (Linear Upper Confidence Bound) is a contextual bandit algorithm that balances exploration vs. exploitation when rewards depend on both the chosen action and its features.
+
+--------------------------------------
+🔎 The Setting
+--------------------------------------
+- In multi-armed bandits, you repeatedly choose from several actions (“arms”) and get rewards.
+- In contextual bandits, each arm comes with features (context). Example: recommending an article to a user, where the user profile + article info are the features.
+
+--------------------------------------
+⚙️ The Assumptions
+--------------------------------------
+LinUCB assumes the expected reward of an arm is a linear function of its features:
+
+    E[r_{t,a} | x_{t,a}] = θ_a^T x_{t,a}
+
+where:
+- r_{t,a} = reward if arm a is chosen at time t
+- x_{t,a} = feature vector (context for arm a)
+- θ_a = unknown parameter vector
+
+--------------------------------------
+🚀 The Algorithm
+--------------------------------------
+For each arm a, keep track of:
+1. Matrix A_a = I + Σ (x x^T)   (regularized covariance of features tried for arm a)
+2. Vector b_a = Σ (r x)         (features weighted by observed rewards)
+
+Then:
+- Estimate parameters:
+      θ̂_a = A_a^{-1} b_a
+
+- Predict expected reward:
+      r̂_{t,a} = θ̂_a^T x_{t,a}
+
+- Add exploration bonus:
+      UCB_{t,a} = r̂_{t,a} + α * sqrt(x_{t,a}^T A_a^{-1} x_{t,a})
+
+At each round:
+1. Compute UCB_{t,a} for all arms.
+2. Choose the arm with the largest UCB.
+3. Observe reward.
+4. Update A_a and b_a.
+
+--------------------------------------
+💡 Intuition
+--------------------------------------
+- Exploitation: choose the arm with highest predicted reward r̂_{t,a}.
+- Exploration: the confidence term sqrt(x^T A^{-1} x) is big when the arm hasn’t been tried much, so the algorithm tries it more.
+- α balances how much exploration you want.
+
+--------------------------------------
+📖 Example
+--------------------------------------
+Recommending news:
+- Context = user age, location, device type.
+- Arms = articles.
+- LinUCB learns which user–article combinations are good, but still explores uncertain options to discover hidden winners.
+
+--------------------------------------
+✅ In short
+--------------------------------------
+LinUCB = linear regression + UCB exploration
+
+
+
+prompt: what is an example of a linUCB algorithm in python
+response: Great question! Let’s build a simple Python example of the LinUCB algorithm.
+
+We’ll simulate a recommendation system with multiple arms (say, 3 ads), each with linear relationships between features and rewards. The LinUCB agent will learn which ad to show given a user’s context.
+
+🐍 Python Example: LinUCB from Scratch
+import numpy as np
+
+class LinUCB:
+    def __init__(self, n_arms, n_features, alpha=1.0):
+        self.n_arms = n_arms
+        self.n_features = n_features
+        self.alpha = alpha
+        
+        # Each arm has its own A (design matrix) and b (response vector)
+        self.A = [np.identity(n_features) for _ in range(n_arms)]
+        self.b = [np.zeros((n_features, 1)) for _ in range(n_arms)]
+    
+    def select_arm(self, contexts):
+        """
+        contexts: list of feature vectors, one per arm (shape: [n_arms, n_features])
+        """
+        p_values = []
+        for arm in range(self.n_arms):
+            A_inv = np.linalg.inv(self.A[arm])
+            theta = A_inv @ self.b[arm]
+            x = contexts[arm].reshape(-1, 1)
+            # Predicted reward
+            mean = float(theta.T @ x)
+            # Exploration bonus
+            bonus = self.alpha * np.sqrt(float(x.T @ A_inv @ x))
+            p_values.append(mean + bonus)
+        return np.argmax(p_values)
+    
+    def update(self, arm, reward, context):
+        """
+        Update parameters after choosing arm and receiving reward.
+        """
+        x = context.reshape(-1, 1)
+        self.A[arm] += x @ x.T
+        self.b[arm] += reward * x
+
+
+# -----------------------------
+# Simulated Example
+# -----------------------------
+np.random.seed(42)
+
+n_arms = 3
+n_features = 5
+n_rounds = 200
+
+# True (hidden) theta for each arm
+true_thetas = [np.random.randn(n_features, 1) for _ in range(n_arms)]
+
+# Initialize LinUCB agent
+agent = LinUCB(n_arms=n_arms, n_features=n_features, alpha=1.0)
+
+rewards = []
+
+for t in range(n_rounds):
+    # Generate random context for each arm
+    contexts = [np.random.randn(n_features) for _ in range(n_arms)]
+    
+    # Agent selects arm
+    chosen_arm = agent.select_arm(contexts)
+    
+    # Generate reward using hidden linear model + noise
+    reward = float(true_thetas[chosen_arm].T @ contexts[chosen_arm].reshape(-1,1) + np.random.randn()*0.1)
+    
+    # Clip reward to [0,1] for simplicity
+    reward = 1 if reward > 0 else 0
+    
+    # Update agent
+    agent.update(chosen_arm, reward, contexts[chosen_arm])
+    
+    rewards.append(reward)
+
+print("Total reward collected:", sum(rewards))
+print("Average reward:", np.mean(rewards))
+
+🔎 How it works
+
+Each arm starts with uncertainty.
+
+At each step:
+
+The agent sees the context (features per arm).
+
+It computes predicted reward + confidence bound (UCB).
+
+Chooses the arm with highest UCB.
+
+Gets a reward from the environment (here, a hidden linear function + noise).
+
+Updates its estimates for that arm.
+
+Over time, the algorithm learns which arms perform best in which contexts.
